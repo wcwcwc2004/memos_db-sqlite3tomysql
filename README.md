@@ -14,7 +14,7 @@ cp -r /memos/memos_prod.db ./memos_prod.db.bk
 ```
 one 
 安装 python and mysql 我在本地搭建的 mysql 然后通过 docker 搭建的 memos
-two
+ 通过memos 的 docker 去创建基础的 memos 的数据库的表格
 ```bash
 docker run -d \
   --name memos-m \
