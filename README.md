@@ -37,6 +37,7 @@ mysql -u memos -p memos_db < /mysqlpath/memos_db_backup.sql
 ![image](https://github.com/user-attachments/assets/0de21836-92cb-4549-99aa-7d9268281035)
 ![image](https://github.com/user-attachments/assets/f42b838f-ec94-4e4d-b4fb-7fb1dd1f89fa)
 
+以下内容是执行日志
 ```bash
 python3.12  ./sql.py 
 MySQL 中的表: ['activity', 'idp', 'inbox', 'memo', 'memo_organizer', 'memo_relation', 'migration_history', 'reaction', 'resource', 'system_setting', 'user', 'user_setting', 'webhook']
