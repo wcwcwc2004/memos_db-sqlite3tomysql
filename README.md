@@ -5,6 +5,9 @@ use python3  and sqlite3 detabase to mysql database
 的脚本 但是我的数据库太大了 4G 导致迁移过来的数据不完整 我上传的文件和图片等并不能转换过来 
 由于我使用 sqlite3 的加载速度太慢了 我重新写了一个python脚本 使用这个脚本 可以把sqlite3 的数据库的数据迁移到 mysql 中来 我使用的 mysql5.7  python3.12
 
+The migration scripts are for Memos
+https://github.com/usememos/memos
+
 我测试的环境是 memos0.24版本 转0.24版本 其他的没有测试过 另外之前脚本前请先备份自己的数据哦！ 
 ```bash
 cp -r /memos/memos_prod.db ./memos_prod.db.bk
