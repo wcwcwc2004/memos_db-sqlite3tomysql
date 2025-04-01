@@ -1,8 +1,9 @@
 # memos_db-sqlite3tomysql
 use python3  and sqlite3 detabase to mysql database
 
-最开始我使用了这个大佬（https://github.com/tigerzioo/memos_sqlite2mysql）的脚本 但是我的数据库太大了 4G 导致迁移过来的数据不完整 
-然后重新写了一个脚本 使用这个脚本 可以把sqlite3 的数据库的数据迁移到 mysql 中来 我使用的 mysql5.7  python3.12
+最开始我使用了这个大佬（https://github.com/tigerzioo/memos_sqlite2mysql）  
+的脚本 但是我的数据库太大了 4G 导致迁移过来的数据不完整 我上传的文件和图片等并不能转换过来 
+由于我使用 sqlite3 的加载速度太慢了 我重新写了一个python脚本 使用这个脚本 可以把sqlite3 的数据库的数据迁移到 mysql 中来 我使用的 mysql5.7  python3.12
 one 
 安装 python and mysql 我在本地搭建的 mysql 然后通过 docker 搭建的 memos
 two
@@ -20,3 +21,12 @@ three
 ```bash
 mysql -u memos -p memos_db < /mysqlpath/memos_db_backup.sql
 ```
+这个脚本几乎包括了所有的内容比如这些文件和文章的时间 以及上传的文件的时间轴 
+![image](https://github.com/user-attachments/assets/6ac22ac6-27b4-413e-a17e-742c29bf7566)
+
+然后我发现系统设置的这些数据确实导入进 mysql了但是并没有生效 我也不清楚为什么  这个只有自己手动设置一下 但是用户信息等都是完整的 内容都完整 
+
+![image](https://github.com/user-attachments/assets/0de21836-92cb-4549-99aa-7d9268281035)
+![image](https://github.com/user-attachments/assets/f42b838f-ec94-4e4d-b4fb-7fb1dd1f89fa)
+
+
