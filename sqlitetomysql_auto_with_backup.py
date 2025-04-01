@@ -4,16 +4,16 @@ from mysql.connector import Error
 from datetime import datetime
 
 # SQLite3 连接
-sqlite_db_path = '/sqlite3path/memos_prod.db'
+sqlite_db_path = '~/.memos/memos_prod.db'
 sqlite_conn = sqlite3.connect(sqlite_db_path)
 sqlite_cursor = sqlite_conn.cursor()
 
 # MySQL 连接
 mysql_config = {
     'host': 'localhost',
-    'user': 'mysqlusername',
-    'password': 'mysqlpassowrd',
-    'database': 'memos_db'
+    'user': 'mysqluseranme',
+    'password': 'mysqlpasswrod',
+    'database': 'memos'
 }
 
 try:
@@ -36,6 +36,12 @@ print("SQLite3 中的表:", sqlite_tables)
 # 找到公共表（需要迁移的表）
 common_tables = set(mysql_tables).intersection(set(sqlite_tables))
 print("需要迁移的表:", common_tables)
+
+# 清空 MySQL 中的所有表
+for table_name in common_tables:
+    mysql_cursor.execute(f"TRUNCATE TABLE `{table_name}`;")
+    mysql_conn.commit()
+    print(f"已清空 MySQL 中的 {table_name} 表")
 
 # 需要转换时间戳的列
 timestamp_columns = {'created_ts', 'updated_ts'}
@@ -77,42 +83,79 @@ for table_name in common_tables:
     # 构造插入语句
     placeholders = ','.join(['%s'] * len(common_columns))
     safe_columns = [f"`{col}`" if col in ['key', 'blob'] else col for col in common_columns]
-    insert_query = f"INSERT IGNORE INTO {table_name} ({','.join(safe_columns)}) VALUES ({placeholders})"
     
-    # 插入数据到 MySQL
-    try:
-        mysql_cursor.executemany(insert_query, processed_rows)
-        mysql_conn.commit()
-        print(f"{table_name} 迁移完成，行数: {len(processed_rows)}")
-    except Error as e:
-        print(f"迁移 {table_name} 数据失败: {e}")
+    # 对 reaction 表使用 REPLACE，其他表逐行插入（resource）或批量插入
+    if table_name == 'reaction':
+        insert_query = f"REPLACE INTO {table_name} ({','.join(safe_columns)}) VALUES ({placeholders})"
+        try:
+            mysql_cursor.executemany(insert_query, processed_rows)
+            mysql_conn.commit()
+        except Error as e:
+            print(f"迁移 {table_name} 数据失败: {e}")
+    elif table_name == 'resource':
+        insert_query = f"INSERT INTO {table_name} ({','.join(safe_columns)}) VALUES ({placeholders})"
+        for i, row in enumerate(processed_rows):
+            try:
+                mysql_cursor.execute(insert_query, row)
+                mysql_conn.commit()
+                
+                # 验证 blob 数据完整性
+                sqlite_id = row[safe_columns.index('id')]  # 查找 'id'
+                sqlite_cursor.execute(f"SELECT LENGTH(blob) FROM {table_name} WHERE id = ?", (sqlite_id,))
+                sqlite_blob_size = sqlite_cursor.fetchone()[0] or 0
+                mysql_cursor.execute(f"SELECT LENGTH(`blob`) FROM `{table_name}` WHERE `id` = %s", (sqlite_id,))
+                mysql_blob_size = mysql_cursor.fetchone()[0] or 0
+                
+                if sqlite_blob_size != mysql_blob_size:
+                    print(f"警告: {table_name} ID={sqlite_id} (第 {i+1} 行) 的 blob 数据大小不匹配: SQLite3={sqlite_blob_size}, MySQL={mysql_blob_size}")
+            except Error as e:
+                print(f"插入 {table_name} 数据失败 (第 {i+1} 行): {e}")
+    else:
+        insert_query = f"INSERT INTO {table_name} ({','.join(safe_columns)}) VALUES ({placeholders})"
+        try:
+            mysql_cursor.executemany(insert_query, processed_rows)
+            mysql_conn.commit()
+        except Error as e:
+            print(f"迁移 {table_name} 数据失败: {e}")
+    
+    print(f"{table_name} 迁移完成，行数: {len(processed_rows)}")
+    
+    # 检查数据量对比
+    sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+    sqlite_row_count = sqlite_cursor.fetchone()[0]
+    mysql_cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
+    mysql_row_count = mysql_cursor.fetchone()[0]
+    print(f"{table_name} 行数对比: SQLite3={sqlite_row_count}, MySQL={mysql_row_count}")
+    
+    # 检查 BLOB 数据大小（仅对包含 blob 的表）
+    if 'blob' in common_columns:
+        sqlite_cursor.execute(f"SELECT SUM(LENGTH(blob)) FROM {table_name}")
+        sqlite_blob_size = sqlite_cursor.fetchone()[0] or 0
+        mysql_cursor.execute(f"SELECT SUM(LENGTH(`blob`)) FROM `{table_name}`")
+        mysql_blob_size = mysql_cursor.fetchone()[0] or 0
+        print(f"{table_name} BLOB 数据大小对比: SQLite3={sqlite_blob_size} 字节, MySQL={mysql_blob_size} 字节")
 
 # 导出 MySQL 数据到 SQL 文件
-backup_file = '/root/dl/.memos/20250401/memos_db_backup.sql'
+backup_file = './memos_db_backup.sql'
 print(f"\n开始导出 MySQL 数据到备份文件: {backup_file}")
 
 with open(backup_file, 'w', encoding='utf-8') as f:
-    # 写入数据库创建语句（可选）
     f.write(f"DROP DATABASE IF EXISTS `memos_db`;\n")
     f.write(f"CREATE DATABASE `memos_db`;\n")
     f.write(f"USE `memos_db`;\n\n")
     
     for table_name in mysql_tables:
-        # 获取表创建语句
         mysql_cursor.execute(f"SHOW CREATE TABLE {table_name};")
         create_table_stmt = mysql_cursor.fetchone()[1]
         f.write(f"{create_table_stmt};\n\n")
         
-        # 获取表数据
         mysql_cursor.execute(f"SELECT * FROM {table_name};")
         rows = mysql_cursor.fetchall()
         if rows:
-            # 获取列名
             mysql_cursor.execute(f"SHOW COLUMNS FROM {table_name};")
             columns = [row[0] for row in mysql_cursor.fetchall()]
-            safe_columns = [f"`{col}`" for col in columns]  # 所有列名加反引号
+            safe_columns = [f"`{col}`" for col in columns]
             
-            # 写入 INSERT 语句
             f.write(f"INSERT INTO `{table_name}` ({','.join(safe_columns)}) VALUES\n")
             values = []
             for row in rows:
@@ -123,9 +166,9 @@ with open(backup_file, 'w', encoding='utf-8') as f:
                     elif isinstance(val, (int, float)):
                         formatted_row.append(str(val))
                     elif isinstance(val, bytes):
-                        formatted_row.append(f"X'{val.hex()}'")  # BLOB 数据用十六进制
+                        formatted_row.append(f"X'{val.hex()}'")
                     else:
-                        formatted_row.append(f"'{str(val).replace('\'', '\\\'')}'")  # 转义单引号
+                        formatted_row.append(f"'{str(val).replace('\'', '\\\'')}'")
                 values.append(f"({','.join(formatted_row)})")
             f.write(",\n".join(values) + ";\n\n")
         else:
